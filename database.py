@@ -13,7 +13,7 @@ def save_report_to_db(report_name, data, report_type):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             report_name TEXT,
             report_type TEXT,
-            data TEXT,
+            data TEXT
         )
     ''')
 
