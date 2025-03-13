@@ -12,7 +12,6 @@ if not config.config.sh_client_id or not config.config.sh_client_secret:
 else:
     st.toast("Sentinel Hub credentials are set correctly!", icon="✅")
 
-
 # Sidebar for user input
 st.sidebar.header("INPUT PARAMETERS 📍")
 st.sidebar.subheader("Location and Date Range")
@@ -20,6 +19,21 @@ st.sidebar.subheader("Location and Date Range")
 # Initialize session state for location if not already initialized
 if 'location_input' not in st.session_state:
     st.session_state.location_input = "New Delhi"
+
+def save_image_as_png(image_array):
+    """
+    Convert a NumPy image array (0-1 float or 0-255 uint8) to a PNG BytesIO object.
+    """
+    # Ensure the image is in 8-bit format
+    image_8bit = (image_array * 255).astype(np.uint8)
+    image_pil = Image.fromarray(image_8bit)
+
+    # Save as PNG into BytesIO
+    image_bytes = io.BytesIO()
+    image_pil.save(image_bytes, format="PNG")
+    image_bytes.seek(0)
+    
+    return image_bytes
 
 # Function to get coordinates from Nominatim
 def get_coordinates(location_name):
@@ -55,7 +69,7 @@ def calculate_savi(nir_band, red_band):
     denominator = nir_band + red_band + 0.5
     return safe_divide(nir_band - red_band, denominator) * 1.5
 
-# Function to save CSV reports to the database
+# save CSV reports to the Database 
 def save_csv_to_db(data, report_name, report_type):
     df = pd.DataFrame(data)
     save_report_to_db(report_name, df, report_type)
@@ -138,7 +152,6 @@ function evaluatePixel(sample) {
     return [sample.B04, sample.B03, sample.B02, sample.B08]; // Red, Green, Blue, NIR
 }
 """
-
 request = SentinelHubRequest(
     evalscript=evalscript,
     input_data=[SentinelHubRequest.input_data(
@@ -146,10 +159,11 @@ request = SentinelHubRequest(
         time_interval=(str(start_date), str(end_date))
     )],
     responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
-    bbox=bbox,
-    size=(512, 512),
+    bbox=bbox, 
+    size=(1024, 1024),
     config=config.config
 )
+
 
 # Process satellite imagery
 def process_image():
@@ -173,7 +187,8 @@ def process_image():
     except Exception as e:
         st.error(f"Error retrieving satellite image: {e}")
         return None
-
+    
+    
 # Display selected vegetation index
 if selected_coordinates[0] and selected_coordinates[1]:
     st.write("## Satellite Imagery & Vegetation Indices")
@@ -182,21 +197,30 @@ if selected_coordinates[0] and selected_coordinates[1]:
         true_color, infrared_image, red_band, green_band, nir_band = data
 
         # Dropdowns for user selections
-        index = st.sidebar.selectbox("Select Vegetation Index", ["NDVI", "EVI", "SAVI"])
         image_type = st.sidebar.selectbox("Select Image Type", ["True Color", "Infrared"])
+        index = st.sidebar.selectbox("Select Vegetation Index", ["NDVI", "EVI", "SAVI"])
 
         if image_type == "True Color":
             # Image and download button placed tightly
             st.image(true_color, caption="True Color Image", use_container_width=True)
-            # Add download button directly after the True Color Image
+            # Download button - True Color Image
             st.download_button(
                 label="Download True Color Image",
-                data=BytesIO(Image.fromarray((true_color * 255).astype(np.uint8)).tobytes()),
+                # data=BytesIO(Image.fromarray((true_color * 255).astype(np.uint8)).tobytes()),
+                data =save_image_as_png(true_color),
                 file_name="true_color_image.png",
                 mime="image/png"
             )
         else:
             st.image(infrared_image, caption="Infrared Image", use_container_width=True)
+            # Download button - infra Color Image
+            st.download_button(
+                label="Download infrared Color Image",
+                # data=BytesIO(Image.fromarray((infrared_image * 255).astype(np.uint8)).tobytes()),
+                data =save_image_as_png(infrared_image),
+                file_name="infrared_color_image.png",
+                mime="image/png"
+            )
 
         if index == "NDVI":
             vegetation_index = calculate_ndvi(nir_band, red_band)
@@ -210,12 +234,23 @@ if selected_coordinates[0] and selected_coordinates[1]:
         norm = mcolors.Normalize(vmin=-1, vmax=1)
         vegetation_index_color = cmap(norm(vegetation_index))
 
+        # Normalize and convert vegetation index image to PNG format
+        vegetation_index_8bit = (vegetation_index_color[:, :, :3] * 255).astype(np.uint8)  # Remove alpha channel
+        vegetation_pil = Image.fromarray(vegetation_index_8bit)
+
+        #Save as PNG into BytesIO object
+        vegetation_bytes = io.BytesIO()
+        vegetation_pil.save(vegetation_bytes, format="PNG")
+        vegetation_bytes.seek(0)  # Move pointer to start
+
+        # Display NDVI/EVI/SAVI Image
         st.image(vegetation_index_color, caption=f"{index} Image", use_container_width=True)
 
         # Add download button directly below NDVI/EVI/SAVI Image
         st.download_button(
             label=f"Download {index} Image",
-            data=BytesIO(Image.fromarray((vegetation_index_color * 255).astype(np.uint8)).tobytes()),
+            # data=BytesIO(Image.fromarray((vegetation_index_color * 255).astype(np.uint8)).tobytes()),
+            data=vegetation_bytes,
             file_name=f"{index.lower()}_image.png",
             mime="image/png"
         )
@@ -239,9 +274,8 @@ if selected_coordinates[0] and selected_coordinates[1]:
         if st.button(f"Save {index} Graph Data to Database"):
             save_csv_to_db({'Date': dates, f'{index}': actual_ndvi_values}, f"{index}_Graph_{st.session_state.location_input}", "Graph")
 
-        # Generate CSV separately for download
+        # Generate CSV 
         graph_csv = pd.DataFrame({'Date': dates, f'{index}': actual_ndvi_values}).to_csv(index=False)
-
         # Add the download button for graph data directly below the graph
         st.download_button(
             label=f"Download {index} Graph Data as CSV",
@@ -249,7 +283,6 @@ if selected_coordinates[0] and selected_coordinates[1]:
             file_name=f"{index.lower()}_graph_data.csv",
             mime="text/csv"
         )
-
 
         # Frequency distribution histogram
         freq_index = vegetation_index.flatten()
@@ -264,9 +297,8 @@ if selected_coordinates[0] and selected_coordinates[1]:
         if st.button(f"Save {index} Histogram Data to Database"):
             save_csv_to_db({'Value': freq_index}, f"{index}_Histogram_{st.session_state.location_input}", "Histogram")
 
-        # Generate CSV separately for download
+        # Generate CSV 
         histogram_csv = pd.DataFrame({'Value': freq_index}).to_csv(index=False)
-
         # Add the download button directly below the histogram
         st.download_button(
             label=f"Download {index} Histogram Data as CSV",
