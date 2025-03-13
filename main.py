@@ -286,24 +286,36 @@ if selected_coordinates[0] and selected_coordinates[1]:
 
         # Frequency distribution histogram
         freq_index = vegetation_index.flatten()
-        freq_index = freq_index[~np.isnan(freq_index)]
+        freq_index = freq_index[~np.isnan(freq_index)]  # Remove NaN values
 
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.hist(freq_index, bins=20, color="blue", edgecolor="black", alpha=0.7)
-        ax.set_title(f"Frequency Distribution of {index}")
-        st.pyplot(fig)
+        # Convert data to a Pandas DataFrame
+        df = pd.DataFrame({'Value': freq_index})
+
+        # Create an interactive histogram using Plotly
+        fig = px.histogram(df, x='Value', nbins=50, color_discrete_sequence=['green'])
+        fig.update_layout(
+            title=f"Frequency Distribution of {index}",
+            xaxis_title="NDVI Value",
+            yaxis_title="Frequency",
+            bargap=0.1
+        )
+
+        # Display Plotly chart in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
 
         # Save histogram data to database when button is clicked
         if st.button(f"Save {index} Histogram Data to Database"):
             save_csv_to_db({'Value': freq_index}, f"{index}_Histogram_{st.session_state.location_input}", "Histogram")
 
-        # Generate CSV 
-        histogram_csv = pd.DataFrame({'Value': freq_index}).to_csv(index=False)
-        # Add the download button directly below the histogram
+        # Generate CSV
+        histogram_csv = df.to_csv(index=False)
+
+        # Add download button for histogram data
         st.download_button(
             label=f"Download {index} Histogram Data as CSV",
             data=histogram_csv,
             file_name=f"{index.lower()}_histogram_data.csv",
             mime="text/csv"
         )
+
 
