@@ -1,33 +1,61 @@
-import sqlite3
-import pandas as pd
-from io import StringIO
+from modules.lib import *
 
-# Function to save report data to the database
-def save_report_to_db(report_name, data, report_type):
-    conn = sqlite3.connect("ndvi_reports.db")
+# Function to initialize the database with separate tables
+def sep_initialize_database():
+    conn = sqlite3.connect("NDVI_reports_.db")
     cursor = conn.cursor()
 
-    # Create table if not exists
+    # Create table for Graph Data  
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reports (
+        CREATE TABLE IF NOT EXISTS Graph_reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             report_name TEXT,
-            report_type TEXT,
-            data TEXT
+            location TEXT,
+            date TEXT,
+            ndvi_value REAL,
+            report_type TEXT DEFAULT "Graph"
         )
     ''')
 
-    # Convert DataFrame to CSV string
-    csv_buffer = StringIO()
-    data.to_csv(csv_buffer, index=False)
-    csv_content = csv_buffer.getvalue()
+    # Create table for Histogram Data
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Histogram_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_name TEXT,
+            location TEXT,
+            data REAL,
+            report_type TEXT DEFAULT "Histogram"
+        )
+    ''')
 
-    # Insert report into the database
-    cursor.execute("INSERT INTO reports (report_name, report_type, data) VALUES (?, ?, ?)", 
-                   (report_name, report_type, csv_content))
-    
     conn.commit()
     conn.close()
+
+# Call this function when starting the app to ensure tables exist
+sep_initialize_database()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # # Function to fetch all saved reports
 # def fetch_saved_reports():

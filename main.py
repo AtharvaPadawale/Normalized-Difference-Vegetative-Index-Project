@@ -6,7 +6,7 @@ from database import *
 st.set_page_config(page_title="Satellite Imagery & NDVI Dashboard", layout="wide")
 st.markdown(
     """
-    <h1 style='text-align: center; 
+    <h1 style='text-align: cent er; 
                font-size: 40px; 
                color: #FF5733; 
                background-color: #a6a6a6; 
@@ -83,6 +83,7 @@ def get_coordinates(location_name):
         st.error("Failed to connect to the Nominatim API.")
         return None, None
 
+
 # Safe division function for vegetation index calculations
 def safe_divide(numerator, denominator):
     denominator[denominator == 0] = np.nan  # Replace zeros with NaN
@@ -101,17 +102,52 @@ def calculate_savi(nir_band, red_band):
     denominator = nir_band + red_band + 0.5
     return safe_divide(nir_band - red_band, denominator) * 1.5
 
-# save CSV reports to the Database 
-def save_csv_to_db(data, report_name, report_type):
-    df = pd.DataFrame(data)
-    save_report_to_db(report_name, df, report_type)
-    st.success(f"Report '{report_name}' has been saved to the database.")
+
+# Function to save Graph data to the database
+def save_graph_to_db(report_name, location, data):
+    conn = sqlite3.connect("NDVI_reports_.db")
+    cursor = conn.cursor()
+    
+    # Insert each row into the graph_reports table
+    for _, row in data.iterrows():
+        cursor.execute(
+            "INSERT INTO Graph_reports (report_name, location, date, ndvi_value) VALUES (?, ?, ?, ?)", 
+            (report_name, location, row["Date"], row["NDVI Value"])
+        )
+
+    conn.commit()
+    conn.close()
+    st.success(f"Graph Report '{report_name}' has been saved to the database.")
+
+# Function to save histogram data to the database
+def save_histogram_to_db(report_name, location, data, report_type="Histogram"):
+    conn = sqlite3.connect("NDVI_reports_.db")
+    cursor = conn.cursor()
+
+    # Convert DataFrame to CSV string
+    csv_buffer = StringIO()
+    data.to_csv(csv_buffer, index=False)
+    csv_content = csv_buffer.getvalue()
+
+    # Insert into the histogram_reports table
+    cursor.execute("INSERT INTO histogram_reports (report_name, location, report_type, data) VALUES (?, ?, ?, ?)", 
+                   (report_name, location, report_type, csv_content))
+    
+    conn.commit()
+    conn.close()
+    st.success(f"Histogram Report '{report_name}' has been saved to the database.")
 
 def create_download_button(data, filename, button_label):
-    csv = save_csv_to_db(data, filename)
+    # Convert DataFrame to CSV format
+    df = pd.DataFrame(data)
+    csv_buffer = StringIO()
+    df.to_csv(csv_buffer, index=False)
+    csv_content = csv_buffer.getvalue()
+
+    # Create download button
     st.sidebar.download_button(
         label=button_label,
-        data=csv,
+        data=csv_content,
         file_name=filename,
         mime="text/csv"
     )
@@ -382,13 +418,17 @@ if selected_coordinates[0] and selected_coordinates[1]:
         # Display in Streamlit
         st.plotly_chart(fig, use_container_width=True)
 
-        # Save to database when button is clicked
+        # Graph DB Saving Button
         if st.button(f"Save {index} Graph Data to Database"):
-            save_csv_to_db({'Date': dates, f'{index}': actual_ndvi_values}, f"{index}_Graph_{st.session_state.location_input}", "Graph")
+            save_graph_to_db(
+                f"{index}_Graph_{st.session_state.location_input}", 
+                st.session_state.location_input, 
+                pd.DataFrame({'Date': dates, 'NDVI Value': actual_ndvi_values})
+            )
 
         # Generate CSV 
         graph_csv = pd.DataFrame({'Date': dates, f'{index}': actual_ndvi_values}).to_csv(index=False)
-        # Add the download button for graph data directly below the graph
+        # Add the CSV download button for graph data directly below the graph
         st.download_button(
             label=f"Download {index} Graph Data as CSV",
             data=graph_csv,
@@ -396,6 +436,7 @@ if selected_coordinates[0] and selected_coordinates[1]:
             mime="text/csv"
         )
         st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
+
 
         # HISTOGRAM
         st.markdown("<h3 style='text-align: left; color: #b2beb5;'>NDVI Value Distribution</h3>", unsafe_allow_html=True)
@@ -423,14 +464,17 @@ if selected_coordinates[0] and selected_coordinates[1]:
         # Display Plotly chart in Streamlit
         st.plotly_chart(fig, use_container_width=True)
 
-        # Save histogram data to database when button is clicked
+         # Histogram DB Saving Button
         if st.button(f"Save {index} Histogram Data to Database"):
-            save_csv_to_db({'Value': freq_index}, f"{index}_Histogram_{st.session_state.location_input}", "Histogram")
-
+            save_histogram_to_db(f"{index}_Histogram_{st.session_state.location_input}", 
+                                st.session_state.location_input, 
+                                pd.DataFrame({'Value': freq_index}), 
+                                "Histogram")
+            
         # Generate CSV
         histogram_csv = df.to_csv(index=False)
 
-        # Add download button for histogram data
+        # Add CSV download button for histogram data
         st.download_button(
             label=f"Download {index} Histogram Data as CSV",
             data=histogram_csv,
