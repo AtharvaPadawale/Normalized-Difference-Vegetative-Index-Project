@@ -4,7 +4,42 @@ from database import *
 
 # Streamlit app configuration
 st.set_page_config(page_title="Satellite Imagery & NDVI Dashboard", layout="wide")
-st.title("🌍 NDVI Dashboard")
+st.markdown(
+    """
+    <h1 style='text-align: center; 
+               font-size: 40px; 
+               color: #FF5733; 
+               background-color: #a6a6a6; 
+               padding: 10px; 
+               border-radius: 10px; 
+               border-bottom: 3px solid #4CAF50;'>
+        🌍 NDVI Dashboard 🌿
+    </h1>
+    <br>
+    <br>
+    """,
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebar"] {
+            background-color: #a6a6a6;
+            border-right: 4px solid #4CAF50;
+            padding: 10px;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+st.sidebar.markdown(
+    "<h2 style='text-align: center; color: #4CAF50;'>🌿 NDVI Analyzer</h2>",
+    unsafe_allow_html=True
+)
+
+# Sidebar for user input
+st.sidebar.header("INPUT PARAMETERS 📍")
 
 # Check if credentials are properly set
 if not config.config.sh_client_id or not config.config.sh_client_secret:
@@ -12,9 +47,6 @@ if not config.config.sh_client_id or not config.config.sh_client_secret:
 else:
     st.toast("Sentinel Hub credentials are set correctly!", icon="✅")
 
-# Sidebar for user input
-st.sidebar.header("INPUT PARAMETERS 📍")
-st.sidebar.subheader("Location and Date Range")
 
 # Initialize session state for location if not already initialized
 if 'location_input' not in st.session_state:
@@ -22,7 +54,7 @@ if 'location_input' not in st.session_state:
 
 def save_image_as_png(image_array):
     """
-    Convert a NumPy image array (0-1 float or 0-255 uint8) to a PNG BytesIO object.
+    Convert a NumPy image array to a PNG BytesIO object.
     """
     # Ensure the image is in 8-bit format
     image_8bit = (image_array * 255).astype(np.uint8)
@@ -89,7 +121,13 @@ latitude, longitude = get_coordinates(st.session_state.location_input)
 selected_coordinates = [latitude, longitude] if latitude and longitude else [28.6139, 77.2090]  # Default: New Delhi
 
 # Location search input
-location_input = st.sidebar.text_input("Enter Location (e.g., 'Mumbai', 'Delhi')", st.session_state.location_input)
+with st.sidebar.expander("📍 Location"):
+    location_input = st.text_input("Enter Location", st.session_state.location_input)
+
+# User inputs for date range
+with st.sidebar.expander("📅 Select Date Range"):
+    start_date = st.date_input("Start Date", value=datetime.date(2023, 1, 1))
+    end_date = st.date_input("End Date", value=datetime.date(2023, 1, 15))
 
 # Update the map if the location input changes
 if location_input != st.session_state.location_input:
@@ -110,32 +148,32 @@ folium_map.add_child(MousePosition())
 
 map_data = st_folium(folium_map, width=1000, height=600, key="location_map")
 
-# After the user clicks on the map and selects a location
+# Update coordinates when the user clicks on the map
 if map_data and map_data.get("last_clicked") is not None:
     new_lat, new_lon = map_data["last_clicked"]["lat"], map_data["last_clicked"]["lng"]
 
-    # Reverse geocode to get location name
+    # Reverse geocode to get the location name
     reverse_geocode_url = f"https://nominatim.openstreetmap.org/reverse?lat={new_lat}&lon={new_lon}&format=json"
-    response = requests.get(reverse_geocode_url)
+    response = requests.get(reverse_geocode_url, headers={"User-Agent": "Streamlit App"})
 
     if response.status_code == 200:
         location_info = response.json()
+
+        # Extract city, town, or village
         new_location = (
-            location_info["address"].get("city") or
-            location_info["address"].get("town") or
-            location_info["address"].get("village") or
-            "Unknown Location"
+            location_info.get("address", {}).get("city") or
+            location_info.get("address", {}).get("town") or
+            location_info.get("address", {}).get("village") or
+            location_info.get("display_name", "Unknown Location")
         )
 
-        # Only update session state if the location changed
-        if new_location and new_location != st.session_state.get("location_input"):
+        # Only update the session state if the location changed
+        if new_location != st.session_state.get("location_input"):
             st.session_state.location_input = new_location
-            st.session_state.selected_coordinates = [new_lat, new_lon]  # Update stored coordinates
-            st.rerun()  # Force Streamlit to refresh
+            st.session_state.selected_coordinates = [new_lat, new_lon]
+            st.rerun()  # Force Streamlit to refresh with new location
 
-# User inputs for date range
-start_date = st.sidebar.date_input("Start Date", value=datetime.date(2023, 1, 1))
-end_date = st.sidebar.date_input("End Date", value=datetime.date(2023, 1, 15))
+
 
 # Define bounding box and request satellite image
 bbox = BBox((selected_coordinates[1] - 0.01, selected_coordinates[0] - 0.01, selected_coordinates[1] + 0.01, selected_coordinates[0] + 0.01), CRS.WGS84)
@@ -156,7 +194,8 @@ request = SentinelHubRequest(
     evalscript=evalscript,
     input_data=[SentinelHubRequest.input_data(
         data_collection=DataCollection.SENTINEL2_L2A,
-        time_interval=(str(start_date), str(end_date))
+        time_interval=(str(start_date), str(end_date)),
+        mosaicking_order="leastCC"
     )],
     responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
     bbox=bbox, 
@@ -193,16 +232,44 @@ def process_image():
 if selected_coordinates[0] and selected_coordinates[1]:
     st.write("## Satellite Imagery & Vegetation Indices")
     data = process_image()
+
+    image_descriptions = {
+        "True Color": {
+            "short": "Represents natural colors as seen by the human eye.",
+        },
+        "Infrared": {
+            "short": "Highlights vegetation using near-infrared light.",
+        },
+        "NDVI": {
+            "short": "Measures vegetation health using red and NIR bands.",
+        },
+        "EVI": {
+            "short": "Enhanced NDVI that reduces atmospheric distortions.",
+        },
+        "SAVI": {
+            "short": "Modified NDVI for arid regions with sparse vegetation.",
+        }
+    }
+
     if data:
         true_color, infrared_image, red_band, green_band, nir_band = data
 
         # Dropdowns for user selections
-        image_type = st.sidebar.selectbox("Select Image Type", ["True Color", "Infrared"])
-        index = st.sidebar.selectbox("Select Vegetation Index", ["NDVI", "EVI", "SAVI"])
+        with st.sidebar.expander("🖼️ Select Image Type"):
+            image_type = st.selectbox("Categories:", ["True Color", "Infrared"])
+        with st.sidebar.expander("🌿 Vegetation Index Selection"):
+            index = st.selectbox("Indexes:", ["NDVI", "EVI", "SAVI"])
 
         if image_type == "True Color":
             # Image and download button placed tightly
-            st.image(true_color, caption="True Color Image", use_container_width=True)
+            # img caption
+            st.image(true_color, use_container_width=True)
+            st.markdown(f"<p style='text-align:center; font-size:23px; font-weight:bold;'>{image_type} Image</p>", unsafe_allow_html=True)
+            
+            # informatin text box
+            st.markdown(f"<p style='font-size:21px;'><b>{image_type}: {image_descriptions[image_type]['short']}</b></p>", unsafe_allow_html=True)
+
+
             # Download button - True Color Image
             st.download_button(
                 label="Download True Color Image",
@@ -211,8 +278,15 @@ if selected_coordinates[0] and selected_coordinates[1]:
                 file_name="true_color_image.png",
                 mime="image/png"
             )
+
         else:
-            st.image(infrared_image, caption="Infrared Image", use_container_width=True)
+            st.image(infrared_image, use_container_width=True)
+            # image caption
+            st.markdown(
+                f"<p style='text-align:center; font-size:23px; font-weight:bold;'>{image_type} Image</p>", 
+                unsafe_allow_html=True)
+            # information text box
+            st.markdown(f"<p style='font-size:21px;'><b>{image_type}: {image_descriptions[image_type]['short']}</b></p>", unsafe_allow_html=True)
             # Download button - infra Color Image
             st.download_button(
                 label="Download infrared Color Image",
@@ -221,6 +295,8 @@ if selected_coordinates[0] and selected_coordinates[1]:
                 file_name="infrared_color_image.png",
                 mime="image/png"
             )
+        st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
+
 
         if index == "NDVI":
             vegetation_index = calculate_ndvi(nir_band, red_band)
@@ -244,7 +320,14 @@ if selected_coordinates[0] and selected_coordinates[1]:
         vegetation_bytes.seek(0)  # Move pointer to start
 
         # Display NDVI/EVI/SAVI Image
-        st.image(vegetation_index_color, caption=f"{index} Image", use_container_width=True)
+        st.image(vegetation_index_color, use_container_width=True)
+        #image caption
+        st.markdown(
+            f"<p style='text-align:center; font-size:23px; font-weight:bold;'>{index} Image</p>", 
+            unsafe_allow_html=True
+        )
+        # info textbox
+        st.markdown(f"<p style='font-size:21px;'><b>{index}: {image_descriptions[index]['short']}</b></p>", unsafe_allow_html=True)
 
         # Add download button directly below NDVI/EVI/SAVI Image
         st.download_button(
@@ -254,21 +337,50 @@ if selected_coordinates[0] and selected_coordinates[1]:
             file_name=f"{index.lower()}_image.png",
             mime="image/png"
         )
+        st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
+
 
         # Vegetation Index Graph
+        # Generate Date Range
         dates = [start_date + datetime.timedelta(days=i) for i in range((end_date - start_date).days + 1)]
         actual_ndvi_values = calculate_ndvi(nir_band, red_band).flatten()[:len(dates)]
+        
+        st.markdown("<h3 style='text-align: left; color: #b2beb5;'>Index Graph</h3>", unsafe_allow_html=True)
+        
+        # Create Plotly Interactive Line Graph
+        fig = go.Figure()
 
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(dates, actual_ndvi_values, label=f"{index} Values", color="green")
-        ax.set_xlabel("Date")
-        ax.set_ylabel("Value")
-        ax.set_title(f"{index} for {st.session_state.location_input}")
-        ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
-        ax.legend()
-        plt.xticks(rotation=45)
-        st.pyplot(fig)
+        fig.add_trace(go.Scatter(
+            x=dates, y=actual_ndvi_values, 
+            mode='lines+markers', 
+            line=dict(color='green', width=2),
+            marker=dict(size=8, color='red'),
+            name=f"{index} Values"
+        ))
+
+        # Enhance Layout
+        fig.update_layout(
+            title=dict(
+                text=f"🌿 {index} Trend for {st.session_state.location_input}",
+                font=dict(size=18, color="#4CAF50"),
+                x=0.4  # Center Align Title
+            ),
+            xaxis_title="Date",
+            yaxis_title=f"{index} Value",
+            xaxis=dict(
+                tickformat="%d/%m",
+                tickangle=-45,
+                showgrid=True,
+                gridwidth=0.5,
+                gridcolor="lightgrey"
+            ),
+            yaxis=dict(showgrid=True, gridcolor="lightgrey"),
+            legend=dict(font=dict(size=12)),
+            plot_bgcolor="rgba(0,0,0,0)",  # Transparent Background
+        )
+
+        # Display in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
 
         # Save to database when button is clicked
         if st.button(f"Save {index} Graph Data to Database"):
@@ -283,6 +395,10 @@ if selected_coordinates[0] and selected_coordinates[1]:
             file_name=f"{index.lower()}_graph_data.csv",
             mime="text/csv"
         )
+        st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
+
+        # HISTOGRAM
+        st.markdown("<h3 style='text-align: left; color: #b2beb5;'>NDVI Value Distribution</h3>", unsafe_allow_html=True)
 
         # Frequency distribution histogram
         freq_index = vegetation_index.flatten()
@@ -294,7 +410,11 @@ if selected_coordinates[0] and selected_coordinates[1]:
         # Create an interactive histogram using Plotly
         fig = px.histogram(df, x='Value', nbins=50, color_discrete_sequence=['green'])
         fig.update_layout(
-            title=f"Frequency Distribution of {index}",
+            title=dict(
+                text=f"🌿 Frequency Distribution of {index}",
+                font=dict(size=18, color="#4CAF50"),
+                x=0.4  # Center Align Title
+            ),
             xaxis_title="NDVI Value",
             yaxis_title="Frequency",
             bargap=0.1
@@ -319,3 +439,8 @@ if selected_coordinates[0] and selected_coordinates[1]:
         )
 
 
+st.sidebar.markdown("---")  # Adds a separator
+st.sidebar.markdown(
+    "<p style='text-align: center; font-size: 12px; color: black;'>Developed by <b>A11</b> | Data from Sentinel Hub</p>",
+    unsafe_allow_html=True
+)

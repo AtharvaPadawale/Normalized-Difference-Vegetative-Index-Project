@@ -1,8 +1,10 @@
 folium==0.19.2
+geopandas==1.0.1
 matplotlib==3.7.2
 numpy==1.24.3
 pandas==2.2.3
 Pillow==11.1.0
+plotly==6.0.0
 Requests==2.32.3
 sentinelhub==3.11.1
 streamlit==1.41.1
