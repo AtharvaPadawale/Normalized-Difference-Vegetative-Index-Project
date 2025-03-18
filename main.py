@@ -6,7 +6,7 @@ from database import *
 st.set_page_config(page_title="Satellite Imagery & NDVI Dashboard", layout="wide")
 st.markdown(
     """
-    <h1 style='text-align: cent er; 
+    <h1 style='text-align: center; 
                font-size: 40px; 
                color: #FF5733; 
                background-color: #a6a6a6; 
@@ -105,7 +105,7 @@ def calculate_savi(nir_band, red_band):
 
 # Function to save Graph data to the database
 def save_graph_to_db(report_name, location, data):
-    conn = sqlite3.connect("NDVI_reports_.db")
+    conn = sqlite3.connect("NDVI_Database.db")
     cursor = conn.cursor()
     
     # Insert each row into the graph_reports table
@@ -120,22 +120,43 @@ def save_graph_to_db(report_name, location, data):
     st.success(f"Graph Report '{report_name}' has been saved to the database.")
 
 # Function to save histogram data to the database
-def save_histogram_to_db(report_name, location, data, report_type="Histogram"):
-    conn = sqlite3.connect("NDVI_reports_.db")
+def save_histogram_to_db(report_name, location, data):
+    conn = sqlite3.connect("NDVI_Database.db")
     cursor = conn.cursor()
 
-    # Convert DataFrame to CSV string
+    # Convert DataFrame to CSV string as sqlite dont support dataframe
     csv_buffer = StringIO()
     data.to_csv(csv_buffer, index=False)
     csv_content = csv_buffer.getvalue()
 
     # Insert into the histogram_reports table
-    cursor.execute("INSERT INTO histogram_reports (report_name, location, report_type, data) VALUES (?, ?, ?, ?)", 
-                   (report_name, location, report_type, csv_content))
+    cursor.execute("INSERT INTO histogram_reports (report_name, location, data) VALUES (?, ?, ?)", 
+                   (report_name, location, csv_content))
     
     conn.commit()
     conn.close()
     st.success(f"Histogram Report '{report_name}' has been saved to the database.")
+
+# Function to save heatmap data to the database
+def save_heatmap_to_db(report_name, location, data,report_type):
+    conn = sqlite3.connect("NDVI_Database.db")
+    cursor = conn.cursor()
+
+    # Convert DataFrame to CSV string as sqlite dont support dataframe
+    csv_buffer = StringIO()
+    data.to_csv(csv_buffer, index=False)
+    csv_content = csv_buffer.getvalue()
+    
+     # Insert each row into the table
+    for _, row in data.iterrows():
+        cursor.execute("""
+            INSERT INTO Heatmap_Repo(report_name, location, latitude, longitude, ndvi_value, report_type)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (report_name, location, row['Latitude'], row['Longitude'], row['NDVI Value'], report_type))
+
+    conn.commit()
+    conn.close()
+    st.success(f"Heatmap Report '{report_name}' has been saved to the database.")
 
 def create_download_button(data, filename, button_label):
     # Convert DataFrame to CSV format
@@ -175,14 +196,14 @@ if location_input != st.session_state.location_input:
 
 st.subheader("📍 INTERACTIVE LOCATION SELECTION")
 
-# Interactive map for user location selection with measure control and mouse position
+# Interactive map for user
 folium_map = folium.Map(location=selected_coordinates, zoom_start=6)
 marker = folium.Marker(selected_coordinates, popup="Selected Location", draggable=True)
 marker.add_to(folium_map)
 folium_map.add_child(MeasureControl())
 folium_map.add_child(MousePosition())
 
-map_data = st_folium(folium_map, width=1000, height=600, key="location_map")
+map_data = st_folium(folium_map, width=1100, height=600, key="location_map")
 
 # Update coordinates when the user clicks on the map
 if map_data and map_data.get("last_clicked") is not None:
@@ -213,6 +234,7 @@ if map_data and map_data.get("last_clicked") is not None:
 
 # Define bounding box and request satellite image
 bbox = BBox((selected_coordinates[1] - 0.01, selected_coordinates[0] - 0.01, selected_coordinates[1] + 0.01, selected_coordinates[0] + 0.01), CRS.WGS84)
+
 evalscript = """
 // Script to fetch Red, NIR for NDVI, and True Color
 function setup() {
@@ -235,7 +257,7 @@ request = SentinelHubRequest(
     )],
     responses=[SentinelHubRequest.output_response("default", MimeType.PNG)],
     bbox=bbox, 
-    size=(1024, 1024),
+    size=(512, 512),
     config=config.config
 )
 
@@ -297,14 +319,12 @@ if selected_coordinates[0] and selected_coordinates[1]:
             index = st.selectbox("Indexes:", ["NDVI", "EVI", "SAVI"])
 
         if image_type == "True Color":
+            st.markdown("<h3 style='text-align: left; color: #b2beb5;'>True Colour Image</h3>", unsafe_allow_html=True)
             # Image and download button placed tightly
-            # img caption
             st.image(true_color, use_container_width=True)
-            st.markdown(f"<p style='text-align:center; font-size:23px; font-weight:bold;'>{image_type} Image</p>", unsafe_allow_html=True)
             
             # informatin text box
             st.markdown(f"<p style='font-size:21px;'><b>{image_type}: {image_descriptions[image_type]['short']}</b></p>", unsafe_allow_html=True)
-
 
             # Download button - True Color Image
             st.download_button(
@@ -316,13 +336,12 @@ if selected_coordinates[0] and selected_coordinates[1]:
             )
 
         else:
+            st.markdown("<h3 style='text-align: left; color: #b2beb5;'>Infrared Colour Image</h3>", unsafe_allow_html=True)
             st.image(infrared_image, use_container_width=True)
-            # image caption
-            st.markdown(
-                f"<p style='text-align:center; font-size:23px; font-weight:bold;'>{image_type} Image</p>", 
-                unsafe_allow_html=True)
+            
             # information text box
             st.markdown(f"<p style='font-size:21px;'><b>{image_type}: {image_descriptions[image_type]['short']}</b></p>", unsafe_allow_html=True)
+
             # Download button - infra Color Image
             st.download_button(
                 label="Download infrared Color Image",
@@ -356,12 +375,8 @@ if selected_coordinates[0] and selected_coordinates[1]:
         vegetation_bytes.seek(0)  # Move pointer to start
 
         # Display NDVI/EVI/SAVI Image
+        st.markdown(f"<h3 style='text-align: left; color: #b2beb5;'>{index} Image </h3>", unsafe_allow_html=True)
         st.image(vegetation_index_color, use_container_width=True)
-        #image caption
-        st.markdown(
-            f"<p style='text-align:center; font-size:23px; font-weight:bold;'>{index} Image</p>", 
-            unsafe_allow_html=True
-        )
         # info textbox
         st.markdown(f"<p style='font-size:21px;'><b>{index}: {image_descriptions[index]['short']}</b></p>", unsafe_allow_html=True)
 
@@ -373,17 +388,18 @@ if selected_coordinates[0] and selected_coordinates[1]:
             file_name=f"{index.lower()}_image.png",
             mime="image/png"
         )
+
         st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
 
 
-        # Vegetation Index Graph
+        # Vegetation Index Line Graph
         # Generate Date Range
         dates = [start_date + datetime.timedelta(days=i) for i in range((end_date - start_date).days + 1)]
         actual_ndvi_values = calculate_ndvi(nir_band, red_band).flatten()[:len(dates)]
         
-        st.markdown("<h3 style='text-align: left; color: #b2beb5;'>Index Graph</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: left; color: #b2beb5;'>Vegetation Index Line Graph</h3>", unsafe_allow_html=True)
         
-        # Create Plotly Interactive Line Graph
+        # ---------- Line Graph
         fig = go.Figure()
 
         fig.add_trace(go.Scatter(
@@ -411,20 +427,12 @@ if selected_coordinates[0] and selected_coordinates[1]:
                 gridcolor="lightgrey"
             ),
             yaxis=dict(showgrid=True, gridcolor="lightgrey"),
-            legend=dict(font=dict(size=12)),
+            legend=dict(font=dict(size=13)),
             plot_bgcolor="rgba(0,0,0,0)",  # Transparent Background
         )
 
         # Display in Streamlit
         st.plotly_chart(fig, use_container_width=True)
-
-        # Graph DB Saving Button
-        if st.button(f"Save {index} Graph Data to Database"):
-            save_graph_to_db(
-                f"{index}_Graph_{st.session_state.location_input}", 
-                st.session_state.location_input, 
-                pd.DataFrame({'Date': dates, 'NDVI Value': actual_ndvi_values})
-            )
 
         # Generate CSV 
         graph_csv = pd.DataFrame({'Date': dates, f'{index}': actual_ndvi_values}).to_csv(index=False)
@@ -435,10 +443,19 @@ if selected_coordinates[0] and selected_coordinates[1]:
             file_name=f"{index.lower()}_graph_data.csv",
             mime="text/csv"
         )
+
+        # Graph DB Saving Button
+        if st.button(f"Save {index} Graph Data to Database"):
+            save_graph_to_db(
+                f"{index}_Graph_{st.session_state.location_input}", 
+                st.session_state.location_input, 
+                pd.DataFrame({'Date': dates, 'NDVI Value': actual_ndvi_values})
+            )
+
         st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
 
 
-        # HISTOGRAM
+        # HISTOGRAM ----
         st.markdown("<h3 style='text-align: left; color: #b2beb5;'>NDVI Value Distribution</h3>", unsafe_allow_html=True)
 
         # Frequency distribution histogram
@@ -446,14 +463,15 @@ if selected_coordinates[0] and selected_coordinates[1]:
         freq_index = freq_index[~np.isnan(freq_index)]  # Remove NaN values
 
         # Convert data to a Pandas DataFrame
-        df = pd.DataFrame({'Value': freq_index})
+        dynamic_col_name = f"{index} Value"
+        df = pd.DataFrame({dynamic_col_name : freq_index}) 
 
         # Create an interactive histogram using Plotly
-        fig = px.histogram(df, x='Value', nbins=50, color_discrete_sequence=['green'])
+        fig = px.histogram(df, x=dynamic_col_name, nbins=50, color_discrete_sequence=['green'])
         fig.update_layout(
             title=dict(
-                text=f"🌿 Frequency Distribution of {index}",
-                font=dict(size=18, color="#4CAF50"),
+                text=f"🌿 {index} Frequency Distribution for {st.session_state.location_input} ",
+                font=dict(size=20, color="#4CAF50"),
                 x=0.4  # Center Align Title
             ),
             xaxis_title="NDVI Value",
@@ -464,13 +482,6 @@ if selected_coordinates[0] and selected_coordinates[1]:
         # Display Plotly chart in Streamlit
         st.plotly_chart(fig, use_container_width=True)
 
-         # Histogram DB Saving Button
-        if st.button(f"Save {index} Histogram Data to Database"):
-            save_histogram_to_db(f"{index}_Histogram_{st.session_state.location_input}", 
-                                st.session_state.location_input, 
-                                pd.DataFrame({'Value': freq_index}), 
-                                "Histogram")
-            
         # Generate CSV
         histogram_csv = df.to_csv(index=False)
 
@@ -478,12 +489,103 @@ if selected_coordinates[0] and selected_coordinates[1]:
         st.download_button(
             label=f"Download {index} Histogram Data as CSV",
             data=histogram_csv,
-            file_name=f"{index.lower()}_histogram_data.csv",
+            file_name=f"{index} histogram_data.csv",
             mime="text/csv"
         )
 
+        # Histogram DB Saving Button
+        if st.button(f"Save {index} Histogram Data to Database"):
+            save_histogram_to_db(f"{index}_Histogram_{st.session_state.location_input}", 
+                                st.session_state.location_input, 
+                                pd.DataFrame({'Value': freq_index}))
+            
+        st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
 
-st.sidebar.markdown("---")  # Adds a separator
+        # HEATMAP ------
+
+        st.markdown("<h3 style='text-align: left; color: #b2beb5;'>🌡️ NDVI Heatmap (Matrix View)</h3>", unsafe_allow_html=True)
+
+        # NDVI Data 
+        vegetation_index = np.nan_to_num(vegetation_index, nan=0)  # Replace NaN with 0 or -1 as dataloss may happen
+        vegetation_index = np.flipud(vegetation_index)  # Flip top-to-bottom
+        # ndvi_normalized = (vegetation_index + 1) / 2  # Shifts -1 to 1 → 0 to 1
+    
+        # Create a Heatmap
+        fig = go.Figure(data=go.Heatmap(
+            z=vegetation_index,
+            # z=ndvi_normalized,
+            colorscale=[
+                    [0.0, 'lightblue'],     # -1 NDVI (Water)
+                    [0.3, 'yellow'],        #  0 NDVI (Bare Land)
+                    [0.5, 'orange'],       #  0.3 NDVI (Sparse Vegetation)
+                    [0.8, 'green'],        #  0.6 NDVI (Moderate Vegetation)
+                    [1.0, 'darkgreen']      #  1 NDVI (Dense Vegetation)
+            ],            
+            colorbar=dict(title="NDVI Values Range"),
+            zmin=-1, zmax=1,
+            # zmin=0, zmax=1, #normalized range
+        ))
+
+        fig.update_layout(
+            title=dict(
+                text=f"🌿 {index} Heatmap for {st.session_state.location_input} ",
+                font=dict(size=20, color="#4CAF50"),
+                x=0.4,  # Center Align Title
+            ),
+            xaxis_title=f"Longitude : {longitude}",
+            yaxis_title=f"Latitude : {latitude}",
+            height=700, 
+            width=1000
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Get Grid Dimensions
+        height, width = vegetation_index.shape
+
+        # Set min and max values for latitude and longitude
+        latitude_min, latitude_max = latitude , latitude 
+        longitude_min, longitude_max = longitude , longitude 
+
+        # Create Longitude and Latitude Arrays
+        lon_values = np.linspace(longitude_min, longitude_max, width)
+        lat_values = np.linspace(latitude_min, latitude_max, height)
+        lat_values = np.flip(lat_values)  # Flip to maintain top-to-bottom alignment
+
+        # Create Meshgrid for Proper Mapping
+        lon_grid, lat_grid = np.meshgrid(lon_values, lat_values)
+
+        # Flatten the Data
+        flattened_ndvi = vegetation_index.flatten()
+        flattened_lat = lat_grid.flatten()
+        flattened_lon = lon_grid.flatten()
+
+        # Convert to Pandas DataFrame
+        df = pd.DataFrame({
+            'Latitude': flattened_lat,
+            'Longitude': flattened_lon,
+            f'{index} Value': flattened_ndvi
+        })
+        # Generate CSV File
+        csv_data = df.to_csv(index=False)
+
+        # Add CSV Download Button
+        st.download_button(
+            label=f"Download {index} Histogram Data as CSV",
+            data=csv_data,
+            file_name=f"{index} heatmap_data.csv",
+            mime="text/csv"
+        )
+        # Heatmap DB Saving Button
+        if st.button(f"Save {index} Heatmap Data to Database"):
+            save_heatmap_to_db(
+                f"{index}_heatmap_{st.session_state.location_input}", 
+                st.session_state.location_input, 
+                data=df,
+                report_type=index
+            )
+
+
+st.sidebar.markdown("---")  # Adds a separatorlabel=f"Download {index} Histogram Data as CSV",
 st.sidebar.markdown(
     "<p style='text-align: center; font-size: 12px; color: black;'>Developed by <b>A11</b> | Data from Sentinel Hub</p>",
     unsafe_allow_html=True

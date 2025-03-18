@@ -2,7 +2,7 @@ from modules.lib import *
 
 # Function to initialize the database with separate tables
 def sep_initialize_database():
-    conn = sqlite3.connect("NDVI_reports_.db")
+    conn = sqlite3.connect("NDVI_Database.db")
     cursor = conn.cursor()
 
     # Create table for Graph Data  
@@ -13,7 +13,7 @@ def sep_initialize_database():
             location TEXT,
             date TEXT,
             ndvi_value REAL,
-            report_type TEXT DEFAULT "Graph"
+            report_type TEXT 
         )
     ''')
 
@@ -24,7 +24,19 @@ def sep_initialize_database():
             report_name TEXT,
             location TEXT,
             data REAL,
-            report_type TEXT DEFAULT "Histogram"
+            report_type TEXT 
+        )
+    ''')
+    # Create table for Heatmap Data
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Heatmap_Repo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_name TEXT,
+            location TEXT,
+            latitude REAL,
+            longitude REAL,
+            ndvi_value REAL,
+            report_type TEXT 
         )
     ''')
 
