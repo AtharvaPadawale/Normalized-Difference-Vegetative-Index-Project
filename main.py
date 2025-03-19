@@ -141,22 +141,45 @@ def save_histogram_to_db(report_name, location, data):
 def save_heatmap_to_db(report_name, location, data,report_type):
     conn = sqlite3.connect("NDVI_Database.db")
     cursor = conn.cursor()
-
-    # Convert DataFrame to CSV string as sqlite dont support dataframe
-    csv_buffer = StringIO()
-    data.to_csv(csv_buffer, index=False)
-    csv_content = csv_buffer.getvalue()
     
      # Insert each row into the table
     for _, row in data.iterrows():
         cursor.execute("""
-            INSERT INTO Heatmap_Repo(report_name, location, latitude, longitude, ndvi_value, report_type)
+            INSERT INTO Heatmap_Reports(report_name, location, latitude, longitude, ndvi_value, report_type)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (report_name, location, row['Latitude'], row['Longitude'], row['NDVI Value'], report_type))
+        """, (report_name, location, row['Latitude'], row['Longitude'], row[f'{index} Value'], report_type))
 
     conn.commit()
     conn.close()
     st.success(f"Heatmap Report '{report_name}' has been saved to the database.")
+
+# Function to save heatmap data to the database
+def save_surfaceData_to_db(report_name, location, data,report_type):
+    conn = sqlite3.connect("NDVI_Database.db")
+    cursor = conn.cursor()
+    
+     # Insert each row into the table
+    for _, row in data.iterrows():
+        cursor.execute("""
+            INSERT INTO Surface_data_report(report_name, location, latitude, longitude, ndvi_value, report_type)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (report_name, location, row['Latitude'], row['Longitude'], row[f'{index} Value'], report_type))
+
+    conn.commit()
+    conn.close()
+    st.success(f"SurfaceData Report '{report_name}' has been saved to the database.")
+
+# feedback 
+def save_feedback_to_db(feedback_text):
+    conn = sqlite3.connect("NDVI_Database.db")
+    cursor = conn.cursor()
+    
+    # Insert feedback
+    cursor.execute("INSERT INTO User_Feedback (feedback) VALUES (?)", (feedback_text,))
+    conn.commit()
+    conn.close()
+
+    print("Your feedback has been saved! Thankyou for your efforts !! 🎉")
 
 def create_download_button(data, filename, button_label):
     # Convert DataFrame to CSV format
@@ -501,7 +524,7 @@ if selected_coordinates[0] and selected_coordinates[1]:
             
         st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
 
-        # HEATMAP ------
+        # -------- HEATMAP ------
 
         st.markdown("<h3 style='text-align: left; color: #b2beb5;'>🌡️ NDVI Heatmap (Matrix View)</h3>", unsafe_allow_html=True)
 
@@ -542,17 +565,21 @@ if selected_coordinates[0] and selected_coordinates[1]:
         # Get Grid Dimensions
         height, width = vegetation_index.shape
 
+        # Define latitude and longitude range
+        lat_range = 0.05  # Adjust based on satellite data
+        lon_range = 0.05  # Adjust based on satellite data
+
         # Set min and max values for latitude and longitude
-        latitude_min, latitude_max = latitude , latitude 
-        longitude_min, longitude_max = longitude , longitude 
+        latitude_min, latitude_max = latitude - lat_range, latitude + lat_range
+        longitude_min, longitude_max = longitude - lon_range, longitude + lon_range
 
         # Create Longitude and Latitude Arrays
         lon_values = np.linspace(longitude_min, longitude_max, width)
         lat_values = np.linspace(latitude_min, latitude_max, height)
-        lat_values = np.flip(lat_values)  # Flip to maintain top-to-bottom alignment
+        lat_values_flip = np.flip(lat_values)  # Flip to maintain top-to-bottom alignment
 
         # Create Meshgrid for Proper Mapping
-        lon_grid, lat_grid = np.meshgrid(lon_values, lat_values)
+        lon_grid, lat_grid = np.meshgrid(lon_values, lat_values_flip)
 
         # Flatten the Data
         flattened_ndvi = vegetation_index.flatten()
@@ -585,8 +612,83 @@ if selected_coordinates[0] and selected_coordinates[1]:
             )
 
 
-st.sidebar.markdown("---")  # Adds a separatorlabel=f"Download {index} Histogram Data as CSV",
+        # ------------3D Surface Plot ---------
+
+        veg_data_surface = vegetation_index
+        
+        colorscale_reversed = "YlGnBu_r"
+
+        # Create 3D Surface Plot
+        fig = go.Figure(data=[go.Surface(
+            x=lon_grid, y=lat_grid, z=veg_data_surface, 
+            colorscale=colorscale_reversed, 
+            cmin=-1, cmax=1
+        )])
+
+        # Update Layout
+        fig.update_layout(
+            title=dict(
+                text=f"🌿 {index} 3D Surface Visualization for {st.session_state.location_input} ",
+                font=dict(size=20, color="#4CAF50"),
+                x=0.4
+            ),
+            scene=dict(
+                xaxis=dict(
+                    title=f"Longitude : {longitude}",
+                    gridcolor="lightgray",  
+                    gridwidth=0.4  
+                ),
+                yaxis=dict(
+                    title=f"Latitude : {latitude}",
+                    gridcolor="lightgray",
+                    gridwidth=0.4
+                ),
+                zaxis=dict(
+                    title=f"{index} Value",
+                    range=[-1, 1],
+                    gridcolor="lightgray",
+                    gridwidth=0.4
+                )
+            ),
+            width=1000,  
+            height=800  
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Generate CSV File
+        csv_data = df.to_csv(index=False)
+
+        # Add CSV Download Button
+        st.download_button(
+            label=f"Download {index} Surface Plot Data as CSV",
+            data=csv_data,
+            file_name=f"{index} 3D_Surface_Plot_data.csv",
+            mime="text/csv"
+        )
+        # 3D Surface Plot DB Saving Button
+        if st.button(f"Save {index} Surface Plot Data to Database"):
+            save_surfaceData_to_db(
+                f"{index}_3D_Surface_Plot_{st.session_state.location_input}", 
+                st.session_state.location_input, 
+                data=df,
+                report_type=index
+            )
+
+
+st.sidebar.markdown("---") 
 st.sidebar.markdown(
     "<p style='text-align: center; font-size: 12px; color: black;'>Developed by <b>A11</b> | Data from Sentinel Hub</p>",
     unsafe_allow_html=True
 )
+
+st.markdown("---")  # Adds a separator
+st.subheader("💡 Feedback")
+feedback = st.text_area("Tell us your experience and suggestions of the project:")
+
+if st.button("Submit Feedback"):
+    if feedback:
+        st.success("Thank you for your feedback! 🙌")
+        save_feedback_to_db(feedback)
+    else:
+        st.warning("Please enter your feedback before submitting.")
