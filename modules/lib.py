@@ -20,5 +20,5 @@ import plotly.express as px
 import plotly.graph_objects as go
 import sqlite3
 import seaborn as sns
-import skimage 
+from skimage import transform
 import atexit

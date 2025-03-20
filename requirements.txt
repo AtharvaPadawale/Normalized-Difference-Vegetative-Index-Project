@@ -8,6 +8,6 @@ plotly
 Requests==2.32.3
 seaborn
 sentinelhub==3.11.1
-skimage==0.0
+scikit-image==0.21.0
 streamlit==1.41.1
 streamlit_folium==0.24.0
