@@ -3,12 +3,11 @@ geopandas==1.0.1
 matplotlib
 numpy
 pandas
-Pillow==11.1.0
-plotly==6.0.0
+Pillow
+plotly
 Requests==2.32.3
 seaborn
 sentinelhub==3.11.1
-streamlit
+skimage==0.0
+streamlit==1.41.1
 streamlit_folium==0.24.0
-setuptools
-wheel
