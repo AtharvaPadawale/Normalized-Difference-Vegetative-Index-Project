@@ -3,43 +3,75 @@ import config
 from database import *
 
 # Streamlit app configuration
-st.set_page_config(page_title="Satellite Imagery & NDVI Dashboard", layout="wide")
-st.markdown(
-    """
-    <h1 style='text-align: center; 
-               font-size: 40px; 
-               color: #FF5733; 
-               background-color: #a6a6a6; 
-               padding: 10px; 
-               border-radius: 10px; 
-               border-bottom: 3px solid #4CAF50;'>
-        🌍 NDVI Dashboard 🌿
-    </h1>
-    <br>
-    <br>
-    """,
-    unsafe_allow_html=True
-)
+st.set_page_config(page_title="NDVI TerraMetrics Dashboard", layout="wide")
 
 st.markdown(
     """
     <style>
-        [data-testid="stSidebar"] {
-            background-color: #a6a6a6;
-            border-right: 4px solid #4CAF50;
-            padding: 10px;
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap');
+        
+        .glass-title {
+            text-align: center; 
+            font-size: 38px; 
+            font-family: 'Orbitron', sans-serif;
+            color: #D4E7F5; 
+            padding: 15px;
+            border-radius: 10px;
+            background: rgba(20, 20, 20, 0.5);
+            /* box-shadow: 0 8px 32px rgba(0, 255, 198, 0.3); */
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 255, 198, 0.4);
+            width: 100%;
+            margin: auto;
         }
     </style>
+    <div class='glass-title'>Vegetation Index Analysis Dashboard</div>
+    <br><br>
     """,
     unsafe_allow_html=True
 )
+
+st.sidebar.markdown("""
+    <div style="height: 1px; background: linear-gradient(to right, #ff7e5f, #feb47b); margin-bottom: 10px;"></div>
+""", unsafe_allow_html=True)
+
 st.sidebar.markdown(
-    "<h2 style='text-align: center; color: #4CAF50;'>🌿 NDVI Analyzer</h2>",
+    """
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+
+        [data-testid="stSidebar"] {
+            background: rgba(119,158,203,0.1) ;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            /* box-shadow: 0 4px 30px rgba(212, 231, 245, 0.5);*/
+            border-right: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .sidebar-title {
+            text-align: center;
+            font-size: 20px;
+            font-family: 'Orbitron', sans-serif;
+            color: #D4E7F5; 
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1); /* Subtle glass effect */
+            /* box-shadow: 0 8px 32px rgba(255, 255, 255, 0.2);*/
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            margin-bottom: 19px;
+        }
+        
+    </style>
+    <div class='sidebar-title'>Vegetation Index Parameters</div>
+    """,
     unsafe_allow_html=True
 )
 
-# Sidebar for user input
-st.sidebar.header("INPUT PARAMETERS 📍")
+st.sidebar.markdown("""
+    <div style="height: 1px; background: linear-gradient(to right, #ff7e5f, #feb47b); margin-bottom: 10px;"></div><br>
+""", unsafe_allow_html=True)
+
 
 # Check if credentials are properly set
 if not config.config.sh_client_id or not config.config.sh_client_secret:
@@ -215,9 +247,10 @@ if location_input != st.session_state.location_input:
     if new_latitude and new_longitude:
         selected_coordinates = [new_latitude, new_longitude]
         st.session_state.location_input = location_input
-        st.rerun()  # Trigger a rerun to refresh the map
+        st.rerun()  
 
 st.subheader("📍 INTERACTIVE LOCATION SELECTION")
+
 
 # Interactive map for user
 folium_map = folium.Map(location=selected_coordinates, zoom_start=6)
@@ -352,7 +385,6 @@ if selected_coordinates[0] and selected_coordinates[1]:
             # Download button - True Color Image
             st.download_button(
                 label="Download True Color Image",
-                # data=BytesIO(Image.fromarray((true_color * 255).astype(np.uint8)).tobytes()),
                 data =save_image_as_png(true_color),
                 file_name="true_color_image.png",
                 mime="image/png"
@@ -368,7 +400,6 @@ if selected_coordinates[0] and selected_coordinates[1]:
             # Download button - infra Color Image
             st.download_button(
                 label="Download infrared Color Image",
-                # data=BytesIO(Image.fromarray((infrared_image * 255).astype(np.uint8)).tobytes()),
                 data =save_image_as_png(infrared_image),
                 file_name="infrared_color_image.png",
                 mime="image/png"
@@ -406,7 +437,6 @@ if selected_coordinates[0] and selected_coordinates[1]:
         # Add download button directly below NDVI/EVI/SAVI Image
         st.download_button(
             label=f"Download {index} Image",
-            # data=BytesIO(Image.fromarray((vegetation_index_color * 255).astype(np.uint8)).tobytes()),
             data=vegetation_bytes,
             file_name=f"{index.lower()}_image.png",
             mime="image/png"
@@ -415,14 +445,15 @@ if selected_coordinates[0] and selected_coordinates[1]:
         st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
 
 
-        # Vegetation Index Line Graph
+        # --------- Time Line Graph ---------
+
         # Generate Date Range
         dates = [start_date + datetime.timedelta(days=i) for i in range((end_date - start_date).days + 1)]
         actual_ndvi_values = calculate_ndvi(nir_band, red_band).flatten()[:len(dates)]
         
-        st.markdown("<h3 style='text-align: left; color: #b2beb5;'>Vegetation Index Line Graph</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='text-align: left; color: #b2beb5;'>{index} Time-Line Graph</h3>", unsafe_allow_html=True)
         
-        # ---------- Line Graph
+       
         fig = go.Figure()
 
         fig.add_trace(go.Scatter(
@@ -433,12 +464,12 @@ if selected_coordinates[0] and selected_coordinates[1]:
             name=f"{index} Values"
         ))
 
-        # Enhance Layout
         fig.update_layout(
             title=dict(
                 text=f"🌿 {index} Trend for {st.session_state.location_input}",
                 font=dict(size=18, color="#4CAF50"),
-                x=0.4  # Center Align Title
+                x=0.5,  # Centers the title
+                xanchor='center'  # Ensures alignment
             ),
             xaxis_title="Date",
             yaxis_title=f"{index} Value",
@@ -454,12 +485,11 @@ if selected_coordinates[0] and selected_coordinates[1]:
             plot_bgcolor="rgba(0,0,0,0)",  # Transparent Background
         )
 
-        # Display in Streamlit
         st.plotly_chart(fig, use_container_width=True)
 
         # Generate CSV 
         graph_csv = pd.DataFrame({'Date': dates, f'{index}': actual_ndvi_values}).to_csv(index=False)
-        # Add the CSV download button for graph data directly below the graph
+        # Add CSV download button 
         st.download_button(
             label=f"Download {index} Graph Data as CSV",
             data=graph_csv,
@@ -478,8 +508,9 @@ if selected_coordinates[0] and selected_coordinates[1]:
         st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
 
 
-        # HISTOGRAM ----
-        st.markdown("<h3 style='text-align: left; color: #b2beb5;'>NDVI Value Distribution</h3>", unsafe_allow_html=True)
+        # --------- HISTOGRAM ---------
+
+        st.markdown(f"<h3 style='text-align: left; color: #b2beb5;'>{index} Value Distribution</h3>", unsafe_allow_html=True)
 
         # Frequency distribution histogram
         freq_index = vegetation_index.flatten()
@@ -495,7 +526,8 @@ if selected_coordinates[0] and selected_coordinates[1]:
             title=dict(
                 text=f"🌿 {index} Frequency Distribution for {st.session_state.location_input} ",
                 font=dict(size=20, color="#4CAF50"),
-                x=0.4  # Center Align Title
+                x=0.5,  
+                xanchor='center'  
             ),
             xaxis_title="NDVI Value",
             yaxis_title="Frequency",
@@ -508,7 +540,7 @@ if selected_coordinates[0] and selected_coordinates[1]:
         # Generate CSV
         histogram_csv = df.to_csv(index=False)
 
-        # Add CSV download button for histogram data
+        # Add CSV download button 
         st.download_button(
             label=f"Download {index} Histogram Data as CSV",
             data=histogram_csv,
@@ -524,9 +556,9 @@ if selected_coordinates[0] and selected_coordinates[1]:
             
         st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
 
-        # -------- HEATMAP ------
+        # -------- HEATMAP --------
 
-        st.markdown("<h3 style='text-align: left; color: #b2beb5;'>🌡️ NDVI Heatmap (Matrix View)</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='text-align: left; color: #b2beb5;'>{index} Heatmap Visualization</h3>", unsafe_allow_html=True)
 
         # NDVI Data 
         vegetation_index = np.nan_to_num(vegetation_index, nan=0)  # Replace NaN with 0 or -1 as dataloss may happen
@@ -553,7 +585,8 @@ if selected_coordinates[0] and selected_coordinates[1]:
             title=dict(
                 text=f"🌿 {index} Heatmap for {st.session_state.location_input} ",
                 font=dict(size=20, color="#4CAF50"),
-                x=0.4,  # Center Align Title
+                x=0.5,  # Centers the title
+                xanchor='center'  # Ensures alignment
             ),
             xaxis_title=f"Longitude : {longitude}",
             yaxis_title=f"Latitude : {latitude}",
@@ -566,8 +599,8 @@ if selected_coordinates[0] and selected_coordinates[1]:
         height, width = vegetation_index.shape
 
         # Define latitude and longitude range
-        lat_range = 0.05  # Adjust based on satellite data
-        lon_range = 0.05  # Adjust based on satellite data
+        lat_range = 0.05  
+        lon_range = 0.05 
 
         # Set min and max values for latitude and longitude
         latitude_min, latitude_max = latitude - lat_range, latitude + lat_range
@@ -576,7 +609,7 @@ if selected_coordinates[0] and selected_coordinates[1]:
         # Create Longitude and Latitude Arrays
         lon_values = np.linspace(longitude_min, longitude_max, width)
         lat_values = np.linspace(latitude_min, latitude_max, height)
-        lat_values_flip = np.flip(lat_values)  # Flip to maintain top-to-bottom alignment
+        lat_values_flip = np.flip(lat_values) 
 
         # Create Meshgrid for Proper Mapping
         lon_grid, lat_grid = np.meshgrid(lon_values, lat_values_flip)
@@ -611,8 +644,11 @@ if selected_coordinates[0] and selected_coordinates[1]:
                 report_type=index
             )
 
+        st.markdown("<hr style='border: 1px solid #f0ffff; margin-top:20px; margin-bottom:20px;'>", unsafe_allow_html=True)
 
-        # ------------3D Surface Plot ---------
+        # ------------ 3D Surface Plot -----------
+
+        st.markdown(f"<h3 style='text-align: left; color: #b2beb5;'>{index} 3D Surface Plot</h3>", unsafe_allow_html=True)
 
         veg_data_surface = vegetation_index
         
@@ -625,12 +661,12 @@ if selected_coordinates[0] and selected_coordinates[1]:
             cmin=-1, cmax=1
         )])
 
-        # Update Layout
         fig.update_layout(
             title=dict(
                 text=f"🌿 {index} 3D Surface Visualization for {st.session_state.location_input} ",
                 font=dict(size=20, color="#4CAF50"),
-                x=0.4
+                x=0.5,  
+                xanchor='center'
             ),
             scene=dict(
                 xaxis=dict(
@@ -675,14 +711,15 @@ if selected_coordinates[0] and selected_coordinates[1]:
                 report_type=index
             )
 
-
-st.sidebar.markdown("---") 
+st.sidebar.markdown("""
+    <br><div style="height: 1px; background: linear-gradient(to right, #ff7e5f, #feb47b);"></div><br>
+""", unsafe_allow_html=True) 
 st.sidebar.markdown(
-    "<p style='text-align: center; font-size: 12px; color: black;'>Developed by <b>A11</b> | Data from Sentinel Hub</p>",
+    "<p style='text-align: center; font-size: 12px; color: white;'>Developed by <b>A11</b> | Data from Sentinel Hub</p>",
     unsafe_allow_html=True
 )
 
-st.markdown("---")  # Adds a separator
+st.markdown("---")  
 st.subheader("💡 Feedback")
 feedback = st.text_area("Tell us your experience and suggestions of the project:")
 
