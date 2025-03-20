@@ -8,7 +8,7 @@ plotly==6.0.0
 Requests==2.32.3
 seaborn
 sentinelhub==3.11.1
-skimage==0.0
+skimage-image
 streamlit
 streamlit_folium==0.24.0
 setuptools
