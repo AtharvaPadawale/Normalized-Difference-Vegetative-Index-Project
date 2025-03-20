@@ -713,15 +713,50 @@ if selected_coordinates[0] and selected_coordinates[1]:
 
 st.sidebar.markdown("""
     <br><div style="height: 1px; background: linear-gradient(to right, #ff7e5f, #feb47b);"></div><br>
-""", unsafe_allow_html=True) 
+""", unsafe_allow_html=True)
+
+# st.sidebar.markdown(
+#     "<p style='text-align: center; font-size: 13px; color: white;'><b>NDVI | Sentinel Hub</b></p>",
+#     unsafe_allow_html=True
+# )
+
 st.sidebar.markdown(
-    "<p style='text-align: center; font-size: 12px; color: white;'>Developed by <b>A11</b> | Data from Sentinel Hub</p>",
+    """
+    <style>
+    .custom-link {
+        text-align: center;
+        font-size: 15px;
+        color: white !important; 
+        text-decoration: none !important; 
+        transition: all 0.3s ease-in-out;
+    }
+    .custom-link:hover {
+        font-size: 16px; /* Slightly bigger on hover */
+        text-decoration: underline !important; /* Underline appears on hover */
+        color: #FFFFFF;  /* Light green glow effect */
+        text-shadow: 0px 0px 8px ##FFFFFF;
+    }
+    </style>
+    
+    <p style="text-align: center;">
+        <a class="custom-link" href="https://en.wikipedia.org/wiki/Normalized_difference_vegetation_index" target="_blank">
+            NDVI
+        </a> 
+        &nbsp;&nbsp;&nbsp;  <!-- Extra spaces -->
+        | 
+        &nbsp;&nbsp;&nbsp;  <!-- Extra spaces -->
+        <a class="custom-link" href="https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel-2/ndvi" target="_blank">
+            Sentinel Hub
+        </a>
+    </p>
+    """,
     unsafe_allow_html=True
 )
 
+
 st.markdown("---")  
 st.subheader("💡 Feedback")
-feedback = st.text_area("Tell us your experience and suggestions of the project:")
+feedback = st.text_area("Got ideas or feedback? We'd love to hear from you—together, we can make this project even better.")
 
 if st.button("Submit Feedback"):
     if feedback:
