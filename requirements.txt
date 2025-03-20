@@ -11,3 +11,5 @@ sentinelhub==3.11.1
 skimage==0.0
 streamlit
 streamlit_folium==0.24.0
+setuptools
+wheel
